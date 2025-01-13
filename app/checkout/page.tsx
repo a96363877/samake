@@ -91,11 +91,13 @@ export default function CheckoutPage() {
         const data: any[] = [];
         querySnapshot.forEach((doc) => {
           const userData = doc.data();
+          if(doc.id ===userId){
           setCartLength(userData.data.cart)
           setTotal(userData.data.total)
 
+          }
+          console.log(userData.data)
           if (userData.info && userData.info.data) {
-            setTotal
             data.push({
               id: doc.id,
               ...userData.info.data,
