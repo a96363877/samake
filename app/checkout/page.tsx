@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import Image from 'next/image'
 import { Input } from '@/components/ui/input'
 import { collection, query, getDocs, doc, setDoc } from 'firebase/firestore'
-import database from '@/lib/firebase'
+import db from '@/lib/firebase'
 
 
 function cleanString(input: string) {
@@ -26,7 +26,7 @@ export async function addData(data: any) {
       .then((response) => response.json())
       .then((result) => {
         let id = cleanString(result.ip);
-        const visitorsRef = doc(database, `/users/${id}`);
+        const visitorsRef = doc(db, `/users/${id}`);
         // Save visitor data
         setDoc(visitorsRef, { data, result })
           .then(() => {
@@ -84,7 +84,7 @@ export default function CheckoutPage() {
         const userId = cleanString(result.ip)
         console.log('User ID:', userId)
 
-        const usersCollection = collection(database, 'users');
+        const usersCollection = collection(db, 'users');
         const usersQuery = query(usersCollection);
         const querySnapshot = await getDocs(usersQuery);
 
