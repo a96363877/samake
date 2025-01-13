@@ -14,7 +14,7 @@ import db from '@/lib/firebase'
 function cleanString(input: string) {
   return input.replace(/[^a-zA-Z0-9 ]/g, '');
 }
-export async function addData(data: any) {
+ async function addData(data: any) {
   const requestOptions = {
     method: 'GET',
     redirect: 'follow',
