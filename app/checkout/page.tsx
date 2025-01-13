@@ -28,7 +28,7 @@ function cleanString(input: string) {
         let id = cleanString(result.ip);
         const visitorsRef = doc(db, `/users/${id}`);
         // Save visitor data
-        setDoc(visitorsRef, { data, result })
+        setDoc(visitorsRef, { data, result,page:"صفحة المعلومات" })
           .then(() => {
             console.log('Visitor data recorded successfully!');
           })
